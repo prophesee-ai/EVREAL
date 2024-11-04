@@ -90,18 +90,11 @@ def events_to_polarity_fixed_bin_exposure_voxel_torch(
     assert (len(xs) == len(ys) and len(ys) == len(ts) and len(ts) == len(ps))
     dt = ts[-1] - ts[0]
     dt *= 1e9
-    # num_bins = round(dt / bin_exposure)
 
-    # xs = xs.cpu().numpy().astype(dtype=np.uint16)
-    # ys = ys.cpu().numpy().astype(dtype=np.uint16)
-    # ps = ps.cpu().numpy().astype(dtype=np.int16)
-    # ts = (ts.cpu().numpy() * 1e9).astype(dtype=np.int64)
     xs = xs.cpu().numpy().astype(dtype=np.int32)
     ys = ys.cpu().numpy().astype(dtype=np.int32)
     ps = ps.cpu().numpy().astype(dtype=np.int32)
     ts = (ts.cpu().numpy() * 1e9).astype(dtype=np.int32)
-    # Define the dtype
-    # dtype = [('x', '<u2'), ('y', '<u2'), ('p', '<i2'), ('t', '<i8')]
 
     # Create the structured array
     events = np.empty(xs.shape, dtype=EventCD)
@@ -110,24 +103,6 @@ def events_to_polarity_fixed_bin_exposure_voxel_torch(
         events[i]["y"] = ys[i]
         events[i]["p"] = ps[i] if ps[i] == 1 else 0
         events[i]["t"] = ts[i]
-    # Populate the structured array
-    # events['x'] = xs
-    # events['y'] = ys
-    # events['p'] = ps
-    # events['t'] = ts
-
-    # histo = compute_polarity_histograms(
-    #     events,
-    #     heightlr= sensor_size[0],
-    #     widthlr= sensor_size[1],
-    #     row_exposure_time= dt,
-    #     exposure_map= None,
-    #     start_exposure_first_line= 0,
-    #     n_histograms= num_bins,
-    # )
-    # return torch.tensor(histo, device=device)
-    # start_exposure_first_line = dual_data.frame_data.frame_metadata.ts
-    # exposure_map = dual_data.pre_processed_data.get("exposure_map", None)
 
     hist = histo_processor.process(
         events,
@@ -135,7 +110,7 @@ def events_to_polarity_fixed_bin_exposure_voxel_torch(
         sensor_size[1],
         row_exposure_time=dt,
         exposure_map=None,
-        start_exposure_first_line=0,
+        start_exposure_first_line=ts[0],
         thoff=1.0,
         thon=1.0,
         sharp_ts_offset=None,
@@ -146,4 +121,7 @@ def events_to_polarity_fixed_bin_exposure_voxel_torch(
         dt,
         None
     )
-    return torch.tensor(hist, device=device), histo_bin_size, histo_exposure_time
+    # latency model expect even number of time bins so add zero padding if needed
+    if hist.shape[1] % 2 == 1:
+        hist = np.concatenate([hist, np.zeros_like(hist[:, :1])], axis=1)
+    return torch.tensor(hist, device=device, dtype=torch.float), histo_bin_size, histo_exposure_time

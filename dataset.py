@@ -18,7 +18,7 @@ from cimaging_ml.applications.abstract.cimaging_pipeline_factory import instanti
 from cimaging_ml.processings.event_processing import resample_histograms, HistogramPolarityFixedExposureProcessor
 
 LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-sparse-boxer-dog-52-0d71-last-epoch=199-step=25000"
-HISTO_BIN_SIZE_US = 1000
+HISTO_BIN_SIZE_NS = 1e6     # =1ms
 
 class MemMapDataset(Dataset):
 
@@ -52,7 +52,7 @@ class MemMapDataset(Dataset):
             latency_corrector_model, _ = instantiate_pipeline_from_ckpt(LATENCY_CORRECTOR_CKPT)
             self.latency_corrector_model = latency_corrector_model
             self.histo_processor = HistogramPolarityFixedExposureProcessor(
-                bin_exposure=HISTO_BIN_SIZE_US,
+                bin_exposure=HISTO_BIN_SIZE_NS,
                 extra_events=0,
                 ignore_skew=False,
                 match_exposure=True,
@@ -347,12 +347,12 @@ class MemMapDataset(Dataset):
         th_off = 1.0
         th_on = 1.0
 
-        corrected_histo = self.latency_corrector_model(histo)
+        corrected_histo = self.latency_corrector_model(histo.unsqueeze(0))   # add batch dimension for inference
         corrected_histo = -th_off * corrected_histo[:, 0] + th_on * corrected_histo[:, 1]
         resampled_histo = resample_histograms(
             corrected_histo,
             self.num_bins,
             histo_exposure_time / histo_bin_size,
             simple_linear_interpolation=True,
-        ).detach()
+        ).detach().squeeze(0)
         return resampled_histo
