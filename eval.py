@@ -165,7 +165,10 @@ def get_cropper(model, data_loader):
 
 
 def get_eval_metrics_tracker(dataset_name, eval_config, method_name, sequence, metrics):
-    output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name)
+    try:
+        output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name, "with_latency_correction" if eval_config["dataset_kwargs"]["correct_latency"] else "no_latency_correction")
+    except KeyError:
+        output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name)
 
     save_images = eval_config.get('save_images', True)
     save_processed_images = save_images and eval_config['histeq'] != 'none'
