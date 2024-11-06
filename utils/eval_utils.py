@@ -94,7 +94,7 @@ def save_images_from_npy(npy_file_path, output_folder):
         cv2.imwrite(output_path, img)
 
 if __name__ == '__main__':
-    folders = [f.path for f in os.scandir('/mnt/data/ECD/') if f.is_dir()]
+    folders = [f.path for f in os.scandir('/mnt/data/RLED/') if f.is_dir()]
     for folder in folders:
         npy_file = os.path.join(folder, "images.npy")
         output_folder = os.path.join(folder, "gt_images")

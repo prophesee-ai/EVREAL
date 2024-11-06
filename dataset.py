@@ -14,10 +14,12 @@ import sys
 
 sys.path.append('/root/metavision-computational-imaging/sdk/modules/cimaging_ml/python/pypkg')
 
+from cimaging_ml.models.backbones.event_tensor_processor import BaseUNet1p2d
 from cimaging_ml.applications.abstract.cimaging_pipeline_factory import instantiate_pipeline_from_ckpt
 from cimaging_ml.processings.event_processing import resample_histograms, HistogramPolarityFixedExposureProcessor
 
-LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-sparse-boxer-dog-52-0d71-last-epoch=199-step=25000"
+# LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-sparse-boxer-dog-52-0d71-last-epoch=199-step=25000"
+LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-evil-lynx-28-565d-epoch=9-step=2100.ckpt"
 HISTO_BIN_SIZE_NS = 1e6     # =1ms
 
 class MemMapDataset(Dataset):
@@ -344,15 +346,22 @@ class MemMapDataset(Dataset):
             ts,
             ps,
         )
+        if isinstance(self.latency_corrector_model.event_processor.backbone, BaseUNet1p2d):
+            ret = histo.shape[1] % 8
+            if not ret == 0:
+                pad = 8 - ret
+                p, t, h, w = histo.shape
+                histo = torch.cat([histo, torch.zeros((p, pad, h, w))], dim=1)
+
         th_off = 1.0
         th_on = 1.0
 
-        corrected_histo = self.latency_corrector_model(histo.unsqueeze(0))   # add batch dimension for inference
+        corrected_histo = self.latency_corrector_model(histo.unsqueeze(0)).detach()   # add batch dimension for inference
         corrected_histo = -th_off * corrected_histo[:, 0] + th_on * corrected_histo[:, 1]
         resampled_histo = resample_histograms(
             corrected_histo,
             self.num_bins,
             histo_exposure_time / histo_bin_size,
             simple_linear_interpolation=True,
-        ).detach().squeeze(0)
+        ).squeeze(0)
         return resampled_histo
