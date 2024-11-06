@@ -17,7 +17,10 @@ def h5_to_npy(h5_path, output_pth):
     images_path = os.path.join(output_pth, 'images.npy')
     images_ts_path = os.path.join(output_pth, 'images_ts.npy')
     image_event_indices_path = os.path.join(output_pth, 'image_event_indices.npy')
-    sensor_size = None
+    fb_sensor_size = None
+    eb_sensor_size = None
+    eb_x_max = 0
+    eb_y_max = 0
     image_list = []
     file = h5py.File(h5_path, 'r')
     for key in ['events', 'images', 'event_indices']:
@@ -26,13 +29,17 @@ def h5_to_npy(h5_path, output_pth):
             ys = np.array(file['events/ys'])
             ts = np.array(file['events/ts']) / 1e6  # convert to s
             ps = np.array(file['events/ps'])
+            if eb_x_max < np.max(xs):
+                eb_x_max = np.max(xs)
+            if eb_y_max < np.max(ys):
+                eb_y_max = np.max(ys)
         elif key == 'images':
             for image in file['images']:
                 image = np.array(file['images'][image])
-                if sensor_size is None:
-                    sensor_size = image.shape[:2]
-                elif sensor_size != image.shape[:2]:
-                    raise ValueError("Warning: sensor size mismatch. Expected {}, got {}".format(sensor_size, image.shape[:2]))
+                if fb_sensor_size is None:
+                    fb_sensor_size = image.shape[:2]
+                elif fb_sensor_size != image.shape[:2]:
+                    raise ValueError("Warning: sensor size mismatch. Expected {}, got {}".format(fb_sensor_size, image.shape[:2]))
                 image_list.append(image)
             images = np.stack(image_list)
         elif key == 'event_indices':
@@ -68,7 +75,9 @@ def h5_to_npy(h5_path, output_pth):
     np.save(image_event_indices_path, image_event_indices, allow_pickle=False, fix_imports=False)
 
     # write sensor size to metadata
-    metadata = {"sensor_resolution": sensor_size}
+    eb_sensor_size = (int(eb_y_max + 1), int(eb_x_max + 1))
+    assert fb_sensor_size == eb_sensor_size, "Error: sensor size mismatch. Expected {}, got {}".format(fb_sensor_size, eb_sensor_size)
+    metadata = {"sensor_resolution": fb_sensor_size, "eb_sensor_resolution": eb_sensor_size}
     with open(metadata_path, 'w') as f:
         json.dump(metadata, f)
 

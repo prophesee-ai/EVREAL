@@ -5,9 +5,10 @@
             "method": "between_frames"
         },
         "keep_ratio": 1.0,
-        "correct_latency": true
+        "correct_latency": false,
+        "run_event_trail_suppression": true
     },
-    "save_images": false,
+    "save_images": true,
     "histeq": "none",
     "eval_infer_all": false,
     "ts_tol_ms": 1.0,
