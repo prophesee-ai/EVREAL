@@ -4,7 +4,9 @@
         "voxel_method": {
             "method": "between_frames"
         },
-        "keep_ratio": 1.0
+        "keep_ratio": 1.0,
+        "correct_latency": false,
+        "run_event_trail_suppression": true
     },
     "save_images": true,
     "histeq": "none",

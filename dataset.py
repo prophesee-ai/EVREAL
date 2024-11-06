@@ -7,14 +7,40 @@ import torch
 from torch.utils.data import Dataset
 
 # local modules
-from utils.event_utils import events_to_voxel_torch
+from utils.event_utils import events_to_polarity_fixed_bin_exposure_voxel_torch, events_to_voxel_torch
 from utils.util import read_json
+from  event_trail_suppression.event_trail_suppression import ets_process
 
+import sys
+
+sys.path.append('/root/metavision-computational-imaging/sdk/modules/cimaging_ml/python/pypkg')
+
+from cimaging_ml.models.backbones.event_tensor_processor import BaseUNet1p2d
+from cimaging_ml.applications.abstract.cimaging_pipeline_factory import instantiate_pipeline_from_ckpt
+from cimaging_ml.processings.event_processing import resample_histograms, HistogramPolarityFixedExposureProcessor
+
+# LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-sparse-boxer-dog-52-0d71-last-epoch=199-step=25000"
+# LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-evil-lynx-28-565d-epoch=9-step=2100.ckpt"
+LATENCY_CORRECTOR_CKPT = "/mnt/data/EventEnhancementPipeline-evil-lynx-28-565d-last-epoch=120-step=25000.ckpt"
+LATENCY_CORRECTOR_MODEL, _ = instantiate_pipeline_from_ckpt(LATENCY_CORRECTOR_CKPT)
+LATENCY_CORRECTOR_MODEL.to(torch.device("cuda")).eval()
+LATENCY_CORRECTOR_MODEL_NAME = LATENCY_CORRECTOR_CKPT.split("EventEnhancementPipeline-")[-1].split(".")[0]
+
+HISTO_BIN_SIZE_NS = 1e6     # =1ms
 
 class MemMapDataset(Dataset):
 
-    def __init__(self, data_path, sensor_resolution=None, num_bins=5,
-                 voxel_method=None, max_length=None, keep_ratio=1):
+    def __init__(
+    self,
+    data_path,
+    sensor_resolution=None,
+    num_bins=5,
+    voxel_method=None,
+    max_length=None,
+    keep_ratio=1,
+    correct_latency=False,
+    run_event_trail_suppression=False,
+):
         self.num_bins = num_bins
         self.data_path = data_path
         self.keep_ratio = keep_ratio
@@ -29,6 +55,22 @@ class MemMapDataset(Dataset):
 
         if max_length is not None:
             self.length = min(self.length, max_length + 1)
+        self.histo_processor = None
+        self.correct_latency = correct_latency
+        if self.correct_latency:
+            self.histo_processor = HistogramPolarityFixedExposureProcessor(
+                bin_exposure=HISTO_BIN_SIZE_NS,
+                extra_events=0,
+                ignore_skew=False,
+                match_exposure=True,
+                histo_size_divisor=1
+            )
+        self.run_event_trail_suppression = run_event_trail_suppression
+        if self.run_event_trail_suppression:
+            self.threshold_time_on_us = 1e6     # 1us (default value used in ETS paper)
+            self.threshold_time_off_us = 1e6    # 1us (default value used in ETS paper)
+            self.soft_threshold = 0
+
 
     def __getitem__(self, index):
 
@@ -211,8 +253,14 @@ class MemMapDataset(Dataset):
         :param ps: tensor containg p coords of events
         create voxel grid merging positive and negative events (resulting in NUM_BINS x H x W tensor).
         """
+        if self.run_event_trail_suppression:
+            ts = ts -ts[0]
+            xs, ys, ts, ps = ets_process(xs, ys, ts, ps, ts[0], self.sensor_resolution[1], self.sensor_resolution[0], self.threshold_time_on_us, self.threshold_time_off_us, self.soft_threshold)
         # generate voxel grid which has size self.num_bins x H x W
-        voxel_grid = events_to_voxel_torch(xs, ys, ts, ps, self.num_bins, sensor_size=self.sensor_resolution)
+        if not self.correct_latency:
+            voxel_grid = events_to_voxel_torch(xs, ys, ts, ps, self.num_bins, sensor_size=self.sensor_resolution)
+        else:
+            voxel_grid = self.correct_events_latency(xs, ys, ts, ps)
         return voxel_grid
 
     def get_frame(self, index):
@@ -292,3 +340,45 @@ class MemMapDataset(Dataset):
             frame_indices.append([start_idx, end_idx])
             start_idx = end_idx
         return frame_indices
+
+    def correct_events_latency(self, xs, ys, ts, ps):
+        """
+        Correct events latency
+        Parameters
+        ----------
+        events : events tensor
+        Returns
+        -------
+        events: events tensor with corrected latency
+        """
+        assert self.histo_processor is not None, "histo_processor is not defined"
+        # models from the literature assumes these thresholds
+        histo, histo_bin_size, histo_exposure_time = events_to_polarity_fixed_bin_exposure_voxel_torch(
+            self.histo_processor,
+            xs,
+            ys,
+            ts,
+            ps,
+            sensor_size=self.sensor_resolution
+        )
+        if isinstance(LATENCY_CORRECTOR_MODEL.event_processor.backbone, BaseUNet1p2d):
+            ret = histo.shape[1] % 8
+            if not ret == 0:
+                pad = 8 - ret
+                p, t, h, w = histo.shape
+                histo = torch.cat([histo, torch.zeros((p, pad, h, w))], dim=1)
+
+        th_off = 1.0
+        th_on = 1.0
+
+        corrected_histo = LATENCY_CORRECTOR_MODEL(histo.unsqueeze(0).to(torch.device("cuda"))).detach().cpu()   # add batch dimension for inference
+        corrected_histo = -th_off * corrected_histo[:, 0] + th_on * corrected_histo[:, 1]
+        resampled_histo = resample_histograms(
+            corrected_histo,
+            self.num_bins,
+            histo_exposure_time / histo_bin_size,
+            simple_linear_interpolation=True,
+        ).squeeze(0)
+        del histo
+        del corrected_histo
+        return resampled_histo

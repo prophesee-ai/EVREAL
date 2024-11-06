@@ -1,0 +1,18 @@
+ {
+    "root_path": "/mnt/data/RLED",
+    "sequences": 
+    {
+        "city_0035_25fps": {},
+        "city_0036_25fps": {},
+        "city_0037_25fps": {},
+        "city_0038_25fps": {},
+        "city_0039_25fps": {},
+        "town_0009_10fps": {},
+        "town_0010_10fps": {},
+        "town_0011_10fps": {},
+        "valley_0027_10fps": {},
+        "valley_0028_10fps": {},
+        "village_0014_10fps": {},
+        "village_0015_10fps": {}
+    }
+}

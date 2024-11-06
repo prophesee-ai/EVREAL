@@ -13,7 +13,7 @@ from yachalk import chalk
 
 import model as model_arch
 from model.model import ColorNet
-from dataset import MemMapDataset
+from dataset import MemMapDataset, LATENCY_CORRECTOR_MODEL_NAME
 from utils.eval_metrics import EvalMetricsTracker
 from utils.eval_utils import torch2cv2, normalize
 from utils.timers import CudaTimer
@@ -165,7 +165,12 @@ def get_cropper(model, data_loader):
 
 
 def get_eval_metrics_tracker(dataset_name, eval_config, method_name, sequence, metrics):
-    output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name)
+    try:
+        latency_correction_str = f"with_latency_correction_{LATENCY_CORRECTOR_MODEL_NAME}" if eval_config["dataset_kwargs"]["correct_latency"] else "no_latency_correction"
+        ets_str = "with_ets" if eval_config["dataset_kwargs"]["run_event_trail_suppression"] else "no_ets"
+        output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name, f"{ets_str}_{latency_correction_str}")
+    except KeyError:
+        output_path = os.path.join("outputs", eval_config['name'], dataset_name, sequence['name'], method_name)
 
     save_images = eval_config.get('save_images', True)
     save_processed_images = save_images and eval_config['histeq'] != 'none'

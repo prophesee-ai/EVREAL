@@ -1,5 +1,5 @@
  {
-    "root_path": "data/BS_ERGB",
+    "root_path": "/mnt/data/BS_ERGB",
     "sequences": 
     {
         "may29_handheld_01": {},

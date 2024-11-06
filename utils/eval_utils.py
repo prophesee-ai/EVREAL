@@ -1,5 +1,6 @@
 from os.path import join
 from pathlib import Path
+import os
 
 import cv2
 import numpy as np
@@ -82,3 +83,19 @@ def save_inferred_image(folder, image, idx):
     png_path = join(folder, png_name)
     image_for_png = np.round(image * 255).astype(np.uint8)
     cv2.imwrite(png_path, image_for_png)
+
+
+def save_images_from_npy(npy_file_path, output_folder):
+    # Load the .npy file
+    images = np.load(npy_file_path)
+    os.makedirs(output_folder, exist_ok=True)
+    for i, img in enumerate(images):
+        output_path = os.path.join(output_folder, 'frame_{:010d}.png'.format(i))
+        cv2.imwrite(output_path, img)
+
+if __name__ == '__main__':
+    folders = [f.path for f in os.scandir('/mnt/data/RLED/') if f.is_dir()]
+    for folder in folders:
+        npy_file = os.path.join(folder, "images.npy")
+        output_folder = os.path.join(folder, "gt_images")
+        save_images_from_npy(npy_file, output_folder)

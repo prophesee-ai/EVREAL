@@ -1,0 +1,61 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "eval",
+            "type": "python",
+            "request": "launch",
+            "program": "/mnt/data/latency-paper/EVREAL/eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "purpose": [
+                "debug-in-terminal"
+            ],
+            "cwd": "/mnt/data/latency-paper/EVREAL",
+            "args": [
+                "-m",
+                "E2VID",
+                // "E2VID+",
+                // "ET-Net",
+                // "HyperE2VID",
+                "-c",
+                "std",
+                "-d",
+                "ECD",
+                "-qm",
+                "mse",
+                // "ssim",
+                // "lpips",
+            ],
+            "host": "127.0.0.1",
+            "pythonPath": "/root/cimaging-venv/bin/python"
+        },
+        {
+            "name": "debug_docker_predict",
+            "type": "python",
+            "request": "launch",
+            "program": "./pypkg/cimaging_ml/training/cimaging_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "purpose": [
+                "debug-in-terminal"
+            ],
+            "cwd": "/root/metavision-computational-imaging/sdk/modules/cimaging_ml/python",
+            "args": [
+                "predict",
+                "--preset",
+                "user",
+                "--config",
+                "/root/metavision-computational-imaging/sdk/modules/cimaging_ml/python/pypkg/config/cimaging_ml_main/deblur/releases/latest/latest_ml_rggb.yaml",
+                "--experiment_name",
+                "debug_docker_predict",
+                "--no_clearml",
+            ],
+            "host": "127.0.0.1",
+            "pythonPath": "/root/cimaging-venv/bin/python"
+        },
+    ]
+}
